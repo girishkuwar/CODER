@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Snippet Vault</title>
+
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Inter,Arial,sans-serif;
+}
+
+body{
+background:#0a0a0a;
+color:#e4e4e7;
+padding:20px;
+font-size:14px;
+}
+
+.container{
+max-width:850px;
+margin:auto;
+}
+
+h1{
+font-size:22px;
+font-weight:600;
+margin-bottom:15px;
+letter-spacing:-0.5px;
+}
+
+.form{
+display:flex;
+flex-direction:column;
+gap:10px;
+margin-bottom:20px;
+}
+
+input,
+textarea{
+width:100%;
+background:#111;
+border:1px solid #222;
+color:#fff;
+padding:10px 12px;
+border-radius:8px;
+outline:none;
+font-size:13px;
+transition:.2s;
+}
+
+input:focus,
+textarea:focus{
+border-color:#444;
+}
+
+textarea{
+height:140px;
+resize:vertical;
+}
+
+.buttons{
+display:flex;
+gap:8px;
+flex-wrap:wrap;
+}
+
+button{
+background:#151515;
+border:1px solid #2a2a2a;
+color:#fff;
+padding:8px 14px;
+border-radius:8px;
+cursor:pointer;
+font-size:13px;
+transition:.2s;
+}
+
+button:hover{
+background:#222;
+}
+
+.snippets{
+display:grid;
+grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
+gap:14px;
+align-items:start;
+}
+
+.card{
+background:#111;
+border:1px solid #222;
+padding:12px;
+border-radius:10px;
+display:flex;
+flex-direction:column;
+height:100%;
+transition:.2s;
+}
+
+.card:hover{
+border-color:#333;
+transform:translateY(-2px);
+}
+
+.card h3{
+font-size:13px;
+font-weight:600;
+margin-bottom:8px;
+color:#fff;
+}
+
+pre{
+background:#0d0d0d;
+padding:10px;
+border-radius:8px;
+overflow:auto;
+font-size:12px;
+max-height:180px;
+border:1px solid #1d1d1d;
+margin-bottom:10px;
+flex:1;
+}
+
+.cardButtons{
+display:flex;
+gap:8px;
+}
+
+.hidden{
+display:none;
+}
+
+::-webkit-scrollbar{
+width:6px;
+height:6px;
+}
+
+::-webkit-scrollbar-thumb{
+background:#333;
+border-radius:10px;
+}
+
+::-webkit-scrollbar-track{
+background:transparent;
+}
+.toast{
+position:fixed;
+bottom:20px;
+right:20px;
+background:#181818;
+border:1px solid #2e2e2e;
+color:#fff;
+padding:12px 18px;
+border-radius:10px;
+font-size:13px;
+opacity:0;
+transform:translateY(20px);
+transition:.3s;
+pointer-events:none;
+z-index:999;
+box-shadow:0 10px 30px rgba(0,0,0,.4);
+}
+
+.toast.show{
+opacity:1;
+transform:translateY(0);
+}
+</style>
+</head>
+<body>
+<div id="toast" class="toast"></div>
+<div class="container">
+
+<h1>Snippet Vault</h1>
+
+<div class="form">
+
+<input id="title" placeholder="Snippet title">
+
+<textarea id="code" placeholder="Paste code here..."></textarea>
+
+<div class="buttons">
+<button class="addBtn" onclick="addSnippet()">
+Save Snippet
+</button>
+
+<button class="exportBtn" onclick="exportSnippets()">
+Export
+</button>
+
+<button class="importBtn"
+onclick="document.getElementById('fileInput').click()">
+Import
+</button>
+
+<input type="file"
+id="fileInput"
+class="hidden"
+accept=".json"
+onchange="importSnippets(event)">
+</div>
+
+</div>
+
+<div class="snippets" id="snippets"></div>
+
+</div>
+
+<script>
+
+let snippets=
+JSON.parse(localStorage.getItem("snippets")) || [];
+
+function saveStorage(){
+localStorage.setItem(
+"snippets",
+JSON.stringify(snippets)
+);
+}
+
+function addSnippet(){
+
+let title=
+document.getElementById("title").value.trim();
+
+let code=
+document.getElementById("code").value.trim();
+
+if(!title || !code){
+alert("Fill all fields");
+return;
+}
+
+snippets.unshift({
+id:Date.now(),
+title,
+code
+});
+
+saveStorage();
+render();
+
+document.getElementById("title").value="";
+document.getElementById("code").value="";
+}
+
+function copySnippet(code){
+
+navigator.clipboard.writeText(code);
+
+showToast("Snippet copied");
+}
+
+function deleteSnippet(id){
+
+snippets=
+snippets.filter(x=>x.id!==id);
+
+saveStorage();
+render();
+}
+
+function exportSnippets(){
+
+let data=
+JSON.stringify(snippets,null,2);
+
+let blob=
+new Blob([data],{
+type:"application/json"
+});
+
+let a=
+document.createElement("a");
+
+a.href=
+URL.createObjectURL(blob);
+
+a.download=
+"snippets.json";
+
+a.click();
+}
+
+function importSnippets(e){
+
+let file=
+e.target.files[0];
+
+if(!file) return;
+
+let reader=
+new FileReader();
+
+reader.onload=function(event){
+
+try{
+
+let imported=
+JSON.parse(event.target.result);
+
+snippets=[
+...imported,
+...snippets
+];
+
+saveStorage();
+render();
+
+alert("Imported");
+
+}catch{
+alert("Invalid JSON");
+}
+
+}
+
+reader.readAsText(file);
+
+}
+function showToast(message){
+
+let toast=document.getElementById("toast");
+
+toast.textContent=message;
+
+toast.classList.add("show");
+
+clearTimeout(toast.timer);
+
+toast.timer=setTimeout(()=>{
+
+toast.classList.remove("show");
+
+},2000);
+
+}
+function render(){
+
+let container=
+document.getElementById("snippets");
+
+container.innerHTML="";
+
+snippets.forEach(item=>{
+
+container.innerHTML+=`
+<div class="card">
+
+<h3>${item.title}</h3>
+
+<pre><code>${escapeHtml(item.code)}</code></pre>
+
+<div class="cardButtons">
+
+<button class="copy"
+onclick='copySnippet(${JSON.stringify(item.code)})'>
+Copy
+</button>
+
+<button class="delete"
+onclick="deleteSnippet(${item.id})">
+Delete
+</button>
+
+</div>
+
+</div>
+`;
+
+});
+
+}
+
+function escapeHtml(text){
+
+let div=
+document.createElement("div");
+
+div.innerText=text;
+
+return div.innerHTML;
+}
+
+render();
+
+</script>
+
+</body>
+</html>
