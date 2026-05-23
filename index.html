@@ -134,19 +134,6 @@ gap:8px;
 display:none;
 }
 
-::-webkit-scrollbar{
-width:6px;
-height:6px;
-}
-
-::-webkit-scrollbar-thumb{
-background:#333;
-border-radius:10px;
-}
-
-::-webkit-scrollbar-track{
-background:transparent;
-}
 .toast{
 position:fixed;
 bottom:20px;
@@ -171,8 +158,11 @@ transform:translateY(0);
 }
 </style>
 </head>
+
 <body>
+
 <div id="toast" class="toast"></div>
+
 <div class="container">
 
 <h1>Snippet Vault</h1>
@@ -180,22 +170,12 @@ transform:translateY(0);
 <div class="form">
 
 <input id="title" placeholder="Snippet title">
-
 <textarea id="code" placeholder="Paste code here..."></textarea>
 
 <div class="buttons">
-<button class="addBtn" onclick="addSnippet()">
-Save Snippet
-</button>
-
-<button class="exportBtn" onclick="exportSnippets()">
-Export
-</button>
-
-<button class="importBtn"
-onclick="document.getElementById('fileInput').click()">
-Import
-</button>
+<button onclick="addSnippet()">Save Snippet</button>
+<button onclick="exportSnippets()">Export</button>
+<button onclick="document.getElementById('fileInput').click()">Import</button>
 
 <input type="file"
 id="fileInput"
@@ -212,143 +192,152 @@ onchange="importSnippets(event)">
 
 <script>
 
-let snippets=
-JSON.parse(localStorage.getItem("snippets")) || [];
+const BIN_ID = "6a1171d36877513b27bc46e3";
+const API_KEY = "$2a$10$PlXXPEWS0hYlMzgM/CV4b.cC7rgD3DZMszn7n.1foyqWHAt4gRgCa";
+const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
-function saveStorage(){
-localStorage.setItem(
-"snippets",
-JSON.stringify(snippets)
-);
+let snippets = [];
+
+/* ---------------- JSONBIN ---------------- */
+
+async function loadSnippets() {
+  try {
+    let res = await fetch(API_URL, {
+      headers: {
+        "X-Master-Key": API_KEY
+      }
+    });
+
+    let data = await res.json();
+
+    // ✅ FIX: ensure array always
+    if (Array.isArray(data.record)) {
+      snippets = data.record;
+    } else {
+      snippets = [];
+    }
+
+    render();
+
+  } catch (err) {
+    console.error("Load failed", err);
+    snippets = [];
+    render();
+  }
 }
 
-function addSnippet(){
+async function saveStorage() {
+  try {
+    await fetch(API_URL, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Master-Key": API_KEY
+      },
+      body: JSON.stringify(snippets)
+    });
+  } catch (err) {
+    console.error("Save failed", err);
+  }
+}
 
-let title=
-document.getElementById("title").value.trim();
+/* ---------------- CORE ---------------- */
 
-let code=
-document.getElementById("code").value.trim();
+async function addSnippet() {
 
-if(!title || !code){
-alert("Fill all fields");
-return;
+let title = document.getElementById("title").value.trim();
+let code = document.getElementById("code").value.trim();
+
+if (!title || !code) {
+  alert("Fill all fields");
+  return;
 }
 
 snippets.unshift({
-id:Date.now(),
-title,
-code
+  id: Date.now(),
+  title,
+  code
 });
 
-saveStorage();
+await saveStorage();
 render();
 
-document.getElementById("title").value="";
-document.getElementById("code").value="";
+document.getElementById("title").value = "";
+document.getElementById("code").value = "";
+
+showToast("Saved");
 }
 
-function copySnippet(code){
+async function deleteSnippet(id) {
 
+snippets = snippets.filter(x => x.id !== id);
+
+await saveStorage();
+render();
+
+showToast("Deleted");
+}
+
+function copySnippet(code) {
 navigator.clipboard.writeText(code);
-
-showToast("Snippet copied");
+showToast("Copied");
 }
 
-function deleteSnippet(id){
+/* ---------------- IMPORT / EXPORT ---------------- */
 
-snippets=
-snippets.filter(x=>x.id!==id);
+function exportSnippets() {
 
-saveStorage();
-render();
-}
+let data = JSON.stringify(snippets, null, 2);
 
-function exportSnippets(){
+let blob = new Blob([data], { type: "application/json" });
 
-let data=
-JSON.stringify(snippets,null,2);
-
-let blob=
-new Blob([data],{
-type:"application/json"
-});
-
-let a=
-document.createElement("a");
-
-a.href=
-URL.createObjectURL(blob);
-
-a.download=
-"snippets.json";
-
+let a = document.createElement("a");
+a.href = URL.createObjectURL(blob);
+a.download = "snippets.json";
 a.click();
 }
 
-function importSnippets(e){
+function importSnippets(e) {
 
-let file=
-e.target.files[0];
+let file = e.target.files[0];
+if (!file) return;
 
-if(!file) return;
+let reader = new FileReader();
 
-let reader=
-new FileReader();
+reader.onload = async function (event) {
 
-reader.onload=function(event){
+try {
+let imported = JSON.parse(event.target.result);
 
-try{
+snippets = [...imported, ...snippets];
 
-let imported=
-JSON.parse(event.target.result);
-
-snippets=[
-...imported,
-...snippets
-];
-
-saveStorage();
+await saveStorage();
 render();
 
 alert("Imported");
 
-}catch{
+} catch {
 alert("Invalid JSON");
 }
-
-}
+};
 
 reader.readAsText(file);
-
 }
-function showToast(message){
 
-let toast=document.getElementById("toast");
+/* ---------------- UI ---------------- */
 
-toast.textContent=message;
+function render() {
 
-toast.classList.add("show");
-
-clearTimeout(toast.timer);
-
-toast.timer=setTimeout(()=>{
-
-toast.classList.remove("show");
-
-},2000);
-
+if (!Array.isArray(snippets)) {
+  snippets = [];
 }
-function render(){
 
-let container=
-document.getElementById("snippets");
+let container = document.getElementById("snippets");
+container.innerHTML = "";
 
-container.innerHTML="";
+snippets.forEach(item => {
 
-snippets.forEach(item=>{
-
-container.innerHTML+=`
+container.innerHTML += `
 <div class="card">
 
 <h3>${item.title}</h3>
@@ -357,13 +346,11 @@ container.innerHTML+=`
 
 <div class="cardButtons">
 
-<button class="copy"
-onclick='copySnippet(${JSON.stringify(item.code)})'>
+<button onclick='copySnippet(${JSON.stringify(item.code)})'>
 Copy
 </button>
 
-<button class="delete"
-onclick="deleteSnippet(${item.id})">
+<button onclick="deleteSnippet(${item.id})">
 Delete
 </button>
 
@@ -371,22 +358,31 @@ Delete
 
 </div>
 `;
-
 });
-
 }
 
-function escapeHtml(text){
-
-let div=
-document.createElement("div");
-
-div.innerText=text;
-
+function escapeHtml(text) {
+let div = document.createElement("div");
+div.innerText = text;
 return div.innerHTML;
 }
 
-render();
+/* ---------------- TOAST ---------------- */
+
+function showToast(message) {
+let toast = document.getElementById("toast");
+toast.textContent = message;
+toast.classList.add("show");
+
+clearTimeout(toast.timer);
+toast.timer = setTimeout(() => {
+toast.classList.remove("show");
+}, 2000);
+}
+
+/* ---------------- INIT ---------------- */
+
+loadSnippets();
 
 </script>
 
